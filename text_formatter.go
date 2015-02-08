@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,11 +22,18 @@ var (
 	baseTimestamp time.Time
 	isTerminal    bool
 	noQuoteNeeded *regexp.Regexp
+	buffers       sync.Pool
 )
 
 func init() {
 	baseTimestamp = time.Now()
 	isTerminal = IsTerminal()
+
+	buffers = sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
 }
 
 func miniTS() int {
@@ -49,7 +57,10 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 	}
 	sort.Strings(keys)
 
-	b := &bytes.Buffer{}
+	b := buffers.Get().(*bytes.Buffer)
+	b.Truncate(0)
+
+	defer buffers.Put(b)
 
 	prefixFieldClashes(entry.Data)
 
